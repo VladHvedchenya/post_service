@@ -65,10 +65,76 @@ tasks.test {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    finalizedBy(tasks.jacocoTestCoverageVerification)
 }
 
 val test by tasks.getting(Test::class) { testLogging.showStandardStreams = true }
 
 tasks.bootJar {
     archiveFileName.set("service.jar")
+}
+
+jacoco {
+    toolVersion = "0.8.10"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+
+    classDirectories.setFrom(
+        sourceSets.main.get().output.asFileTree.matching {
+            exclude(
+                "**/dto/**",
+                "**/model/**",
+                "**/exception/**",
+                "**/config/**",
+                "**/mapper/**",
+                "**/controller/**",
+                "**/mapper/**",
+                "**/PostServiceApp*.*"
+            )
+        }
+    )
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+
+    violationRules {
+        rule {
+            element = "CLASS"
+
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.90".toBigDecimal()
+            }
+
+            limit {
+                counter = "BRANCH"
+                value = "COVEREDRATIO"
+                minimum = "0.75".toBigDecimal()
+            }
+
+            excludes = listOf(
+                "faang.school.postservice.dto.**",
+                "faang.school.postservice.model.**",
+                "faang.school.postservice.exception.**",
+                "faang.school.postservice.config.**",
+                "faang.school.postservice.client.Feign*",
+                "faang.school.postservice.mapper.**",
+                "faang.school.postservice.controller.**",
+                "faang.school.postservice.PostServiceApp*"
+            )
+        }
+    }
 }
