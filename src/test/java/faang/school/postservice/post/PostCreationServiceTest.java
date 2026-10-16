@@ -1,6 +1,7 @@
 package faang.school.postservice.post;
 
 import faang.school.postservice.dto.post.CreatePostRequest;
+import faang.school.postservice.dto.event.PostCreatedEvent;
 import faang.school.postservice.dto.post.PostResponse;
 import faang.school.postservice.exception.DataValidationException;
 import faang.school.postservice.model.Post;
@@ -15,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,6 +29,9 @@ import static org.mockito.Mockito.when;
 class PostCreationServiceTest {
     @Mock
     private PostRepository postRepository;
+
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
     private PostCreationService postCreationService;
@@ -46,6 +51,7 @@ class PostCreationServiceTest {
         assertThat(response).isEqualTo(new PostResponse(105L, "New post", 1L, projectId, false));
         ArgumentCaptor<Post> postCaptor = ArgumentCaptor.forClass(Post.class);
         verify(postRepository).save(postCaptor.capture());
+        verify(applicationEventPublisher).publishEvent(new PostCreatedEvent(105L, 1L, projectId));
         assertThat(postCaptor.getValue().isPublished()).isFalse();
         assertThat(postCaptor.getValue().isDeleted()).isFalse();
         assertThat(postCaptor.getValue().getScheduledAt()).isNull();
@@ -57,6 +63,7 @@ class PostCreationServiceTest {
         assertThatThrownBy(() -> postCreationService.create(authorId, new CreatePostRequest("New post", null)))
                 .isInstanceOf(DataValidationException.class);
         verifyNoInteractions(postRepository);
+        verifyNoInteractions(applicationEventPublisher);
     }
 
     @Test
@@ -66,5 +73,6 @@ class PostCreationServiceTest {
 
         assertThatThrownBy(() -> postCreationService.create(1L, new CreatePostRequest("New post", null)))
                 .isSameAs(failure);
+        verifyNoInteractions(applicationEventPublisher);
     }
 }
