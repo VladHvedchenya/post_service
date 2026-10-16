@@ -45,3 +45,7 @@ payment-service:
 post-publisher:
   thread-pool-size: 10
   batch-size: 1000
+
+notifications:
+  channels:
+    post-created: post.created
