@@ -1,4 +1,14 @@
 spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        "[max.block.ms]": 5000
+        "[request.timeout.ms]": 5000
+        "[delivery.timeout.ms]": 10000
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/postgres
@@ -47,5 +57,8 @@ post-publisher:
   batch-size: 1000
 
 notifications:
+  transport: ${NOTIFICATIONS_TRANSPORT:redis}
   channels:
     post-created: post.created
+  kafka:
+    topic: post_topic

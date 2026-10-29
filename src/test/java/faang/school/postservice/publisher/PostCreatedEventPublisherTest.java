@@ -21,15 +21,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.ChannelTopic;
 
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,14 +35,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PostCreatedEventPublisherTest {
     private static ValidatorFactory validatorFactory;
 
     @Mock
-    private RedisTemplate<String, String> redisTemplate;
+    private PostCreatedEventTransport transport;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -70,8 +65,7 @@ class PostCreatedEventPublisherTest {
         publisher = new PostCreatedEventPublisher(
                 validatorFactory.getValidator(),
                 objectMapper,
-                redisTemplate,
-                new ChannelTopic("post.created")
+                transport
         );
     }
 
@@ -84,7 +78,7 @@ class PostCreatedEventPublisherTest {
         publisher.publish(event);
 
         ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
-        verify(redisTemplate).convertAndSend(eq("post.created"), jsonCaptor.capture());
+        verify(transport).send(eq("42"), jsonCaptor.capture());
         assertEquals(event, objectMapper.readValue(jsonCaptor.getValue(), PostCreatedEvent.class));
         assertEquals(3, objectMapper.readTree(jsonCaptor.getValue()).size());
     }
@@ -93,7 +87,7 @@ class PostCreatedEventPublisherTest {
     void shouldRejectNullEventBeforeSerializationOrPublishing() {
         assertThrows(NullPointerException.class, () -> publisher.publish(null));
 
-        verifyNoInteractions(objectMapper, redisTemplate);
+        verifyNoInteractions(objectMapper, transport);
     }
 
     @ParameterizedTest
@@ -112,7 +106,7 @@ class PostCreatedEventPublisherTest {
                 .map(Object::toString)
                 .collect(Collectors.toSet());
         assertEquals(expectedInvalidFields, invalidFields);
-        verifyNoInteractions(objectMapper, redisTemplate);
+        verifyNoInteractions(objectMapper, transport);
     }
 
     @Test
@@ -130,31 +124,21 @@ class PostCreatedEventPublisherTest {
         assertSame(serializationFailure, exception.getCause());
         assertTrue(exception.getMessage().contains("PostCreatedEvent"));
         assertTrue(exception.getMessage().contains("postId=105"));
-        verifyNoInteractions(redisTemplate);
+        verifyNoInteractions(transport);
     }
 
     @Test
-    void shouldPropagateRedisFailure() {
+    void shouldPropagateTransportFailure() {
         PostCreatedEvent event = new PostCreatedEvent(105L, 42L, null);
-        RedisConnectionFailureException redisFailure = new RedisConnectionFailureException("Redis unavailable");
-        when(redisTemplate.convertAndSend(eq("post.created"), anyString())).thenThrow(redisFailure);
+        IllegalStateException transportFailure = new IllegalStateException("Transport unavailable");
+        doThrow(transportFailure).when(transport).send(eq("42"), anyString());
 
-        RedisConnectionFailureException exception = assertThrows(
-                RedisConnectionFailureException.class,
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
                 () -> publisher.publish(event)
         );
 
-        assertSame(redisFailure, exception);
-    }
-
-    @Test
-    void shouldAllowPublishingWithoutSubscribers() {
-        PostCreatedEvent event = new PostCreatedEvent(105L, 42L, null);
-        when(redisTemplate.convertAndSend(eq("post.created"), anyString())).thenReturn(0L);
-
-        assertDoesNotThrow(() -> publisher.publish(event));
-
-        verify(redisTemplate).convertAndSend(eq("post.created"), anyString());
+        assertSame(transportFailure, exception);
     }
 
     private static Stream<Arguments> invalidEvents() {
