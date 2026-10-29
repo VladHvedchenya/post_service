@@ -6,9 +6,6 @@ import faang.school.postservice.dto.event.PostCreatedEvent;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -18,25 +15,22 @@ import java.util.Set;
 public class PostCreatedEventPublisher {
     private final Validator validator;
     private final ObjectMapper objectMapper;
-    private final RedisTemplate<String, String> redisTemplate;
-    private final ChannelTopic channelTopic;
+    private final PostCreatedEventTransport transport;
 
     public PostCreatedEventPublisher(
             Validator validator,
             ObjectMapper objectMapper,
-            @Qualifier("textRedisTemplate") RedisTemplate<String, String> redisTemplate,
-            @Qualifier("postCreatedTopic") ChannelTopic channelTopic
-    ){
+            PostCreatedEventTransport transport
+    ) {
         this.validator = validator;
         this.objectMapper = objectMapper;
-        this.redisTemplate = redisTemplate;
-        this.channelTopic = channelTopic;
+        this.transport = transport;
     }
 
-    public void publish(PostCreatedEvent event){
+    public void publish(PostCreatedEvent event) {
         validateEvent(event);
         String json = serializeEvent(event);
-        redisTemplate.convertAndSend(channelTopic.getTopic(), json);
+        transport.send(event.authorId().toString(), json);
     }
 
     private void validateEvent(PostCreatedEvent event){

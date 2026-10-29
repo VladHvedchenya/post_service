@@ -41,7 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Testcontainers
 @SpringJUnitConfig(PostCreatedEventPublisherIntegrationTest.TestConfig.class)
-@TestPropertySource(properties = "notifications.channels.post-created=notification-test.post.created")
+@TestPropertySource(properties = {
+        "notifications.channels.post-created=notification-test.post.created",
+        "notifications.transport=redis"
+})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PostCreatedEventPublisherIntegrationTest {
     @Container
@@ -142,7 +145,7 @@ class PostCreatedEventPublisherIntegrationTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @Import({RedisConfig.class, PostCreatedEventPublisher.class})
+    @Import({RedisConfig.class, PostCreatedEventPublisher.class, RedisPostCreatedEventTransport.class})
     static class TestConfig {
         @Bean
         LettuceConnectionFactory redisConnectionFactory() {
